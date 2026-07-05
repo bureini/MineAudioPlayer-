@@ -1,0 +1,1069 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Mine Audio Player</title>
+    
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#06060c">
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #06060c;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            color: #ffffff;
+        }
+
+        .lyrics-container {
+            position: absolute;
+            top: 8%;
+            left: 5%;
+            width: 90%;
+            height: 48%;
+            z-index: 2;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            mask-image: linear-gradient(to bottom, transparent 0%, white 15%, white 85%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, white 15%, white 85%, transparent 100%);
+            padding: 2rem 0;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .lyric-line {
+            font-size: 1.25rem;
+            font-weight: 500;
+            color: rgba(255, 255, 255, 0.4);
+            text-align: center;
+            min-height: 2.8rem;
+            width: 100%;
+            padding: 0.2rem 1rem;
+            word-wrap: break-word;
+            transform: scale(1.0);
+            transition: all 0.25s ease;
+        }
+
+        .lyric-line.plain-text {
+            color: rgba(255, 255, 255, 0.85);
+            min-height: auto;
+            padding: 0.4rem 1rem;
+        }
+
+        .glass-panel {
+            background: rgba(12, 12, 25, 0.75);
+            backdrop-filter: blur(25px);
+            -webkit-backdrop-filter: blur(25px);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            box-shadow: 0 15px 35px rgba(0, 0, 0, 0.6);
+        }
+
+        .player-container {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            z-index: 3;
+            padding: 1.25rem 1.5rem calc(1.25rem + env(safe-area-inset-bottom));
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            border-radius: 24px 24px 0 0;
+        }
+
+        .track-info {
+            text-align: center;
+        }
+
+        #trackTitle {
+            font-size: 1.05rem;
+            font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            margin-bottom: 0.15rem;
+        }
+
+        #trackArtist {
+            font-size: 0.8rem;
+            color: #8f8fa8;
+        }
+
+        .progress-area {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 0.75rem;
+            color: #8f8fa8;
+        }
+
+        .progress-bar {
+            flex: 1;
+            height: 5px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            position: relative;
+            cursor: pointer;
+        }
+
+        .progress-fill {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00f2fe, #4facfe);
+            border-radius: 10px;
+        }
+
+        .controls-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            max-width: 540px;
+            margin: 0 auto;
+        }
+
+        .btn {
+            background: none;
+            border: none;
+            color: #8f8fa8;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.1s, color 0.2s;
+            -webkit-tap-highlight-color: transparent;
+            width: 44px;
+            height: 44px;
+        }
+
+        .btn:active {
+            transform: scale(0.9);
+        }
+
+        .btn-highlight, .btn.active {
+            color: #00f2fe;
+        }
+
+        .btn-main {
+            color: #ffffff;
+        }
+
+        .btn-play-pause {
+            width: 58px;
+            height: 58px;
+            background: #ffffff;
+            color: #06060c;
+            border-radius: 50%;
+            box-shadow: 0 4px 15px rgba(255, 255, 255, 0.15);
+        }
+
+        .side-drawer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100%;
+            max-width: 380px;
+            height: calc(100% - 145px);
+            z-index: 4;
+            transform: translateX(100%);
+            transition: transform 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .side-drawer.open {
+            transform: translateX(0);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .section-header h2 {
+            font-size: 1.15rem;
+            font-weight: 600;
+        }
+
+        .action-input-row {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .text-input {
+            flex: 1;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 0.5rem 0.75rem;
+            color: white;
+            font-size: 0.85rem;
+            outline: none;
+        }
+
+        .btn-action {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            color: white;
+            padding: 0.5rem 0.85rem;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+        }
+
+        .list-viewport {
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        #playlistsContainer {
+            max-height: 120px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            padding-bottom: 0.75rem;
+        }
+
+        #tracksContainer {
+            flex: 1;
+        }
+
+        .item-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid transparent;
+            border-radius: 12px;
+            cursor: pointer;
+        }
+
+        .item-row.active {
+            background: rgba(0, 242, 254, 0.08);
+            border-color: rgba(0, 242, 254, 0.25);
+            color: #00f2fe;
+        }
+
+        .item-meta {
+            flex: 1;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            font-size: 0.9rem;
+        }
+
+        .item-subtext {
+            font-size: 0.75rem;
+            color: #8f8fa8;
+            margin-top: 0.1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-right: 0.5rem;
+        }
+
+        .lyric-indicator {
+            color: #00f2fe;
+            font-weight: bold;
+            font-size: 0.65rem;
+        }
+
+        .btn-delete {
+            background: none;
+            border: none;
+            color: #ff4a5a;
+            cursor: pointer;
+            opacity: 0.6;
+            padding: 0.2rem;
+        }
+
+        .btn-delete:hover {
+            opacity: 1;
+        }
+
+        svg {
+            width: 22px;
+            height: 22px;
+            fill: currentColor;
+        }
+
+        .about-modal, .transcribe-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(4, 4, 8, 0.85);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+            padding: 1.5rem;
+        }
+
+        .about-modal.active, .transcribe-modal.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .about-content, .transcribe-content {
+            width: 100%;
+            max-width: 440px;
+            border-radius: 20px;
+            padding: 1.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .transcribe-title {
+            font-size: 1.15rem;
+            font-weight: 600;
+            color: #00f2fe;
+        }
+
+        .transcribe-steps {
+            font-size: 0.85rem;
+            line-height: 1.45;
+            color: #d1d1e0;
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .transcribe-steps ol {
+            padding-left: 1.2rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.35rem;
+        }
+
+        .lyrics-textarea {
+            width: 100%;
+            height: 140px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-radius: 12px;
+            padding: 0.75rem;
+            color: #ffffff;
+            font-family: monospace;
+            font-size: 0.8rem;
+            resize: none;
+            outline: none;
+        }
+
+        .lyrics-textarea:focus {
+            border-color: #00f2fe;
+        }
+
+        .modal-action-row {
+            display: flex;
+            justify-content: flex-end;
+            gap: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="lyrics-container" id="lyricsContainerView"></div>
+
+    <div class="transcribe-modal" id="transcribeModal">
+        <div class="transcribe-content glass-panel">
+            <div class="transcribe-title">AI Lyric Transcriber Portal</div>
+            <div class="transcribe-steps">
+                <p>Process your active track elements using the transcription node application:</p>
+                <ol>
+                    <li>Click <strong>Open Lyric Transcriber</strong> to launch the target interface link context.</li>
+                    <li>Drop your track into the panel to calculate standard timestamp layouts.</li>
+                    <li>Copy the resulting synchronized blocks (e.g., <code>[00:10.50] Lyric line...</code>).</li>
+                    <li>Paste the copied text strings down into the text field block below.</li>
+                </ol>
+            </div>
+            <textarea id="pastedLyricsInput" class="lyrics-textarea" placeholder="Paste synchronized transcript text blocks here...&#10;Example:&#10;[00:10.50] One more mountain&#10;[00:14.00] One more road"></textarea>
+            <div class="modal-action-row">
+                <button class="btn-action" id="launchTranscriberBtn" style="background: rgba(0, 242, 254, 0.15); border-color: #00f2fe; color: #00f2fe;">Open Lyric Transcriber</button>
+                <button class="btn-action" id="cancelTranscribeBtn">Cancel</button>
+                <button class="btn-action" id="saveTranscribedBtn" style="background: #ffffff; color: #06060c;">Save Lyrics</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="about-modal" id="aboutModal">
+        <div class="about-content glass-panel">
+            <h3>About Mine Audio Player</h3>
+            <div class="about-instructions">
+                <p><strong>How to Import Lyrics:</strong></p>
+                <ol>
+                    <li>Open the side menu drawer using the top-left menu button.</li>
+                    <li>Upload your audio tracks via the <strong>+ Add Songs</strong> button first.</li>
+                    <li>Select the target song from the queue to make it the active track.</li>
+                    <li>Click <strong>+ Import Lyrics</strong> to upload your local <code>.me</code> or plain <code>.txt</code> file.</li>
+                    <li>Or click <strong>+ AI Lyrics</strong> to open the Lyric Transcriber framework interface.</li>
+                </ol>
+            </div>
+            <div class="about-footer">
+                <div>Application Version: 2.9.0 (Overwrite Guard Active)</div>
+                <div>&copy; 2026 E-Kainano Technologies. All rights reserved.</div>
+            </div>
+            <button class="btn-action" id="closeAboutBtn" style="align-self: flex-end; margin-top: 0.5rem;">Close</button>
+        </div>
+    </div>
+
+    <div class="side-drawer glass-panel open" id="sideDrawer">
+        <div class="section-header">
+            <h2>Your Playlists</h2>
+        </div>
+        <div class="action-input-row">
+            <input type="text" id="newPlaylistName" class="text-input" placeholder="New playlist name...">
+            <button class="btn-action" id="addPlaylistBtn">Create</button>
+        </div>
+        <div class="list-viewport" id="playlistsContainer"></div>
+
+        <div class="section-header">
+            <h2>Tracks Queue</h2>
+            <div style="display: flex; gap: 0.35rem; align-items: center;">
+                <button class="btn-action" id="autoLyricBtn" title="Transcribe Lyrics with AI Service">+ AI Lyrics</button>
+                <label class="btn-action" style="cursor:pointer;" title="Upload Lyrics (.me, .txt)">
+                    + Import Lyrics
+                    <input type="file" id="lyricUpload" accept=".me,.txt" style="display: none;">
+                </label>
+                <label class="btn-action" style="cursor:pointer;">
+                    + Add Songs
+                    <input type="file" id="audioUpload" accept="audio/*" multiple style="display: none;">
+                </label>
+            </div>
+        </div>
+        <div class="list-viewport" id="tracksContainer"></div>
+    </div>
+
+    <div class="player-container glass-panel">
+        <div class="track-info">
+            <div id="trackTitle">No Track Selected</div>
+            <div id="trackArtist">Open Menu to Create Playlists & Add Tracks</div>
+        </div>
+
+        <div class="progress-area">
+            <span id="timeCurrent">0:00</span>
+            <div class="progress-bar" id="progressBar"><div class="progress-fill" id="progressFill"></div></div>
+            <span id="timeTotal">0:00</span>
+        </div>
+
+        <div class="controls-row">
+            <button class="btn" id="drawerToggle" title="Menu">
+                <svg viewBox="0 0 24 24"><path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/></svg>
+            </button>
+
+            <button class="btn" id="btnShuffle" title="Shuffle Playback">
+                <svg viewBox="0 0 24 24"><path d="M10.59 9.17L5.41 4 4 5.41l5.17 5.17 1.42-1.41zM14.5 4l2.04 2.04L4 18.59 5.41 20 17.96 7.46 20 9.5V4h-5.5zm.33 9.41l-1.41 1.41 3.13 3.13L14.5 20H20v-5.5l-2.04 2.04-3.13-3.13z"/></svg>
+            </button>
+
+            <button class="btn btn-main" id="btnPrev" title="Previous"><svg viewBox="0 0 24 24"><path d="M6 6h2v12H6zm3.5 6l8.5 6V6z"/></svg></button>
+
+            <button class="btn btn-play-pause" id="btnPlayPause" title="Play/Pause"><svg viewBox="0 0 24 24" id="playIcon"><path d="M8 5v14l11-7z"/></svg></button>
+
+            <button class="btn btn-main" id="btnNext" title="Next"><svg viewBox="0 0 24 24"><path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z"/></svg></button>
+
+            <button class="btn" id="btnRepeat" title="Repeat Track">
+                <svg viewBox="0 0 24 24"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+            </button>
+
+            <button class="btn" id="aboutToggleBtn" title="About & Setup">
+                <svg viewBox="0 0 24 24"><path d="M11 7h2v2h-2zm0 4h2v6h-2zm1-9C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.41 0-8-3.59-8-8s3.59-8 8-8 8 3.59 8 8-3.59 8-8 8z"/></svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        const sideDrawer = document.getElementById('sideDrawer'), drawerToggle = document.getElementById('drawerToggle');
+        const playlistsContainer = document.getElementById('playlistsContainer'), tracksContainer = document.getElementById('tracksContainer');
+        const newPlaylistName = document.getElementById('newPlaylistName'), addPlaylistBtn = document.getElementById('addPlaylistBtn'), audioUpload = document.getElementById('audioUpload'), lyricUpload = document.getElementById('lyricUpload'), autoLyricBtn = document.getElementById('autoLyricBtn');
+        const trackTitle = document.getElementById('trackTitle'), trackArtist = document.getElementById('trackArtist'), progressFill = document.getElementById('progressFill'), progressBar = document.getElementById('progressBar'), timeCurrent = document.getElementById('timeCurrent'), timeTotal = document.getElementById('timeTotal');
+        const btnPlayPause = document.getElementById('btnPlayPause'), playIcon = document.getElementById('playIcon'), btnPrev = document.getElementById('btnPrev'), btnNext = document.getElementById('btnNext');
+        const btnRepeat = document.getElementById('btnRepeat'), btnShuffle = document.getElementById('btnShuffle');
+        const lyricsContainerView = document.getElementById('lyricsContainerView');
+        const aboutModal = document.getElementById('aboutModal'), aboutToggleBtn = document.getElementById('aboutToggleBtn'), closeAboutBtn = document.getElementById('closeAboutBtn');
+
+        const transcribeModal = document.getElementById('transcribeModal');
+        const pastedLyricsInput = document.getElementById('pastedLyricsInput');
+        const launchTranscriberBtn = document.getElementById('launchTranscriberBtn');
+        const cancelTranscribeBtn = document.getElementById('cancelTranscribeBtn');
+        const saveTranscribedBtn = document.getElementById('saveTranscribedBtn');
+
+        const audio = new Audio(); audio.crossOrigin = "anonymous";
+
+        let db, playlists = [], activePlaylistId = null, currentTrackIndex = -1, objectUrlCache = null;
+        let hasActiveLyrics = false; 
+        let isTimedLyrics = false; 
+        let currentLyrics = [];
+        let isRepeating = false;
+        let isShuffled = false;
+        let shuffleOrder = []; 
+        let currentActiveLyricIndex = -1;
+
+        const request = indexedDB.open("VisualizerPlayerDB", 1);
+        request.onupgradeneeded = (e) => {
+            db = e.target.result;
+            db.createObjectStore("playlists", { keyPath: "id" });
+            db.createObjectStore("tracks", { keyPath: "id" });
+        };
+        request.onsuccess = (e) => {
+            db = e.target.result;
+            loadDataFromStorage();
+        };
+
+        function loadDataFromStorage() {
+            const transaction = db.transaction(["playlists", "tracks"], "readonly");
+            const plStore = transaction.objectStore("playlists");
+            const trStore = transaction.objectStore("tracks");
+
+            plStore.getAll().onsuccess = (e) => {
+                playlists = e.target.result;
+                if(playlists.length === 0) {
+                    playlists.push({ id: "default", name: "Favorites" });
+                    const t = db.transaction(["playlists"], "readwrite");
+                    t.objectStore("playlists").add(playlists[0]);
+                }
+                activePlaylistId = playlists[0].id;
+
+                trStore.getAll().onsuccess = (e2) => {
+                    allTracks = e2.target.result;
+                    renderInterface();
+                    if (getFilteredTracks().length > 0) loadTrack(0);
+                    setupMediaSessionHandlers();
+                };
+            };
+        }
+
+        let allTracks = [];
+        function getFilteredTracks() {
+            return allTracks.filter(t => t.playlistId === activePlaylistId);
+        }
+
+        function generateShuffleOrder() {
+            const total = getFilteredTracks().length;
+            shuffleOrder = Array.from({ length: total }, (_, i) => i);
+            for (let i = shuffleOrder.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [shuffleOrder[i], shuffleOrder[j]] = [shuffleOrder[j], shuffleOrder[i]];
+            }
+            if (currentTrackIndex !== -1) {
+                shuffleOrder = shuffleOrder.filter(idx => idx !== currentTrackIndex);
+                shuffleOrder.unshift(currentTrackIndex);
+            }
+        }
+
+        function renderInterface() {
+            playlistsContainer.innerHTML = '';
+            playlists.forEach(pl => {
+                const row = document.createElement('div');
+                row.className = `item-row ${pl.id === activePlaylistId ? 'active' : ''}`;
+                row.onclick = () => { 
+                    activePlaylistId = pl.id; 
+                    currentTrackIndex = getFilteredTracks().length > 0 ? 0 : -1; 
+                    if (isShuffled) generateShuffleOrder(); 
+                    renderInterface(); 
+                    loadTrack(currentTrackIndex); 
+                };
+                const meta = document.createElement('div');
+                meta.className = 'item-meta'; meta.innerText = pl.name;
+                row.appendChild(meta);
+                if(pl.id !== 'default') {
+                    const del = document.createElement('button');
+                    del.className = 'btn-delete'; del.innerHTML = '×';
+                    del.onclick = (e) => { e.stopPropagation(); deletePlaylist(pl.id); };
+                    row.appendChild(del);
+                }
+                playlistsContainer.appendChild(row);
+            });
+
+            tracksContainer.innerHTML = '';
+            const currentTracks = getFilteredTracks();
+            currentTracks.forEach((track, index) => {
+                const row = document.createElement('div');
+                row.className = `item-row ${index === currentTrackIndex ? 'active' : ''}`;
+                row.onclick = () => selectTrack(index);
+                const meta = document.createElement('div');
+                meta.className = 'item-meta';
+                
+                const hasLyrics = !!track.lyricRaw;
+                meta.innerHTML = `
+                    <div class="track-item-title">${track.title}</div>
+                    <div class="item-subtext">
+                        <span>${track.artist}</span>
+                        ${hasLyrics ? '<span class="lyric-indicator">ME</span>' : ''}
+                    </div>`;
+                row.appendChild(meta);
+                
+                const del = document.createElement('button');
+                del.className = 'btn-delete'; del.innerHTML = '×';
+                del.onclick = (e) => { e.stopPropagation(); deleteTrack(track.id); };
+                row.appendChild(del);
+                
+                tracksContainer.appendChild(row);
+            });
+        }
+
+        addPlaylistBtn.onclick = () => {
+            const name = newPlaylistName.value.trim(); if(!name) return;
+            const newPl = { id: 'pl-' + Date.now(), name: name };
+            playlists.push(newPl);
+            const transaction = db.transaction(["playlists"], "readwrite");
+            transaction.objectStore("playlists").add(newPl);
+            newPlaylistName.value = ''; activePlaylistId = newPl.id; currentTrackIndex = 0;
+            if (isShuffled) generateShuffleOrder();
+            renderInterface(); loadTrack(0);
+        };
+
+        function deletePlaylist(id) {
+            playlists = playlists.filter(p => p.id !== id);
+            allTracks = allTracks.filter(t => t.playlistId !== id);
+            const transaction = db.transaction(["playlists", "tracks"], "readwrite");
+            transaction.objectStore("tracks").delete(id);
+            if(activePlaylistId === id) activePlaylistId = 'default';
+            currentTrackIndex = getFilteredTracks().length > 0 ? 0 : -1; 
+            if (isShuffled) generateShuffleOrder();
+            renderInterface(); loadTrack(currentTrackIndex);
+        }
+
+        audioUpload.onchange = (e) => {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+            const transaction = db.transaction(["tracks"], "readwrite");
+            const store = transaction.objectStore("tracks");
+            
+            const isInitialEmpty = getFilteredTracks().length === 0;
+
+            files.forEach(file => {
+                const trackData = {
+                    id: 'tr-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5),
+                    playlistId: activePlaylistId,
+                    title: file.name.replace(/\.[^/.]+$/, ""),
+                    artist: "Local Track", isFile: true, fileData: file, lyricRaw: null
+                };
+                allTracks.push(trackData); store.add(trackData);
+            });
+            transaction.oncomplete = () => { 
+                if (isShuffled) generateShuffleOrder(); 
+                renderInterface(); 
+                if (isInitialEmpty) loadTrack(0); 
+            };
+        };
+
+        lyricUpload.onchange = (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const ext = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+            if (ext !== '.me' && ext !== '.txt') {
+                alert('Unsupported file extension! Please import valid text configuration formats (.me or .txt)');
+                lyricUpload.value = '';
+                return;
+            }
+
+            const tracks = getFilteredTracks();
+            if (tracks.length === 0 || currentTrackIndex < 0) {
+                alert('Please upload/select a song before applying text sync sheets.');
+                return;
+            }
+
+            const activeTrack = tracks[currentTrackIndex];
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const text = event.target.result;
+                activeTrack.lyricRaw = text;
+                const matchIndex = allTracks.findIndex(t => t.id === activeTrack.id);
+                if (matchIndex > -1) allTracks[matchIndex].lyricRaw = text;
+
+                const transaction = db.transaction(["tracks"], "readwrite");
+                transaction.objectStore("tracks").put(activeTrack);
+                transaction.oncomplete = () => {
+                    renderInterface();
+                    parseAndBuildLyricNodes(text);
+                    lyricUpload.value = '';
+                };
+            };
+            reader.readAsText(file);
+        };
+
+        autoLyricBtn.onclick = () => {
+            if (!navigator.onLine) {
+                alert("Internet network connection required to look up AI transcription resources.");
+                return;
+            }
+            const tracks = getFilteredTracks();
+            if (tracks.length === 0 || currentTrackIndex < 0) {
+                alert('Please load and select an audio track first.');
+                return;
+            }
+
+            const activeTrack = tracks[currentTrackIndex];
+            
+            if (activeTrack.lyricRaw && activeTrack.lyricRaw.trim().length > 0) {
+                alert("Operation Canceled: This track already contains configured lyrics. The AI transcription assistant has been stopped to protect your existing file data.");
+                return;
+            }
+
+            pastedLyricsInput.value = "";
+            audio.pause();
+            playIcon.innerHTML = `<path d="M8 5v14l11-7z"/>`;
+            transcribeModal.classList.add('active');
+        };
+
+        // FIXED: Added an explicit user alert notification to specify network dependency before launching portal link
+        launchTranscriberBtn.onclick = () => {
+            alert("An active internet connection is required to open the AI transcription engine dashboard page. Clicking OK will open the utility tab now.");
+            window.open("https://lyrictranscriber.onrender.com/", "_blank");
+        };
+
+        cancelTranscribeBtn.onclick = () => transcribeModal.classList.remove('active');
+
+        saveTranscribedBtn.onclick = () => {
+            const rawText = pastedLyricsInput.value.trim();
+            if (!rawText) {
+                alert("Please paste text containing lyrics first.");
+                return;
+            }
+
+            const tracks = getFilteredTracks();
+            const activeTrack = tracks[currentTrackIndex];
+
+            activeTrack.lyricRaw = rawText;
+            const globalIdx = allTracks.findIndex(t => t.id === activeTrack.id);
+            if (globalIdx > -1) allTracks[globalIdx].lyricRaw = rawText;
+
+            const transaction = db.transaction(["tracks"], "readwrite");
+            transaction.objectStore("tracks").put(activeTrack);
+            transaction.oncomplete = () => {
+                transcribeModal.classList.remove('active');
+                renderInterface();
+                parseAndBuildLyricNodes(rawText);
+            };
+        };
+
+        function deleteTrack(id) {
+            allTracks = allTracks.filter(t => t.id !== id);
+            const transaction = db.transaction(["tracks"], "readwrite");
+            transaction.objectStore("tracks").delete(id);
+            
+            const remaining = getFilteredTracks();
+            if (remaining.length === 0) {
+                currentTrackIndex = -1;
+                resetPlayerToEmptyState();
+            } else {
+                currentTrackIndex = 0;
+                loadTrack(0);
+            }
+            if (isShuffled) generateShuffleOrder();
+            renderInterface();
+        }
+
+        function resetPlayerToEmptyState() {
+            audio.pause();
+            audio.src = "";
+            trackTitle.innerText = "No Track Selected";
+            trackArtist.innerText = "Open Menu to Create Playlists & Add Tracks";
+            progressFill.style.width = "0%";
+            timeCurrent.innerText = "0:00";
+            timeTotal.innerText = "0:00";
+            parseAndBuildLyricNodes(null);
+            playIcon.innerHTML = `<path d="M8 5v14l11-7z"/>`;
+        }
+
+        function parseAndBuildLyricNodes(rawText) {
+            lyricsContainerView.innerHTML = '';
+            currentLyrics = [];
+            currentActiveLyricIndex = -1;
+            isTimedLyrics = false;
+
+            if (!rawText || !rawText.trim()) {
+                hasActiveLyrics = false;
+                return;
+            }
+
+            const lines = rawText.split('\n');
+            const timeRegex = /\[(\d+):(\d+)(?:\.(\d+))?\]/;
+
+            let detectedTimestamps = false;
+            lines.forEach(line => {
+                if (timeRegex.test(line)) detectedTimestamps = true;
+            });
+
+            if (detectedTimestamps) {
+                isTimedLyrics = true;
+                lines.forEach(line => {
+                    const match = timeRegex.exec(line);
+                    if (match) {
+                        const minutes = parseInt(match[1], 10);
+                        const seconds = parseInt(match[2], 10);
+                        const milliseconds = match[3] ? parseInt(match[3].padEnd(3, '0').substring(0, 3), 10) : 0;
+                        const totalTimeInSeconds = (minutes * 60) + seconds + (milliseconds / 1000);
+                        
+                        const text = line.replace(timeRegex, '').trim();
+                        currentLyrics.push({ time: totalTimeInSeconds, text: text || "🎵" });
+                    }
+                });
+                currentLyrics.sort((a, b) => a.time - b.time);
+            } else {
+                isTimedLyrics = false;
+                lines.forEach(line => {
+                    const cleanLine = line.trim();
+                    if (cleanLine.length > 0) {
+                        currentLyrics.push({ text: cleanLine });
+                    }
+                });
+            }
+
+            if (currentLyrics.length === 0) {
+                hasActiveLyrics = false;
+                return;
+            }
+
+            hasActiveLyrics = true;
+
+            currentLyrics.forEach((item, index) => {
+                const node = document.createElement('div');
+                
+                if (isTimedLyrics) {
+                    node.className = 'lyric-line';
+                    if (index === 0) {
+                        node.style.color = '#00f2fe';
+                        node.style.transform = 'scale(1.05)';
+                    }
+                } else {
+                    node.className = 'lyric-line plain-text';
+                }
+                
+                node.innerText = item.text;
+                node.id = `lyric-line-${index}`;
+                lyricsContainerView.appendChild(node);
+            });
+            
+            if (!isTimedLyrics) lyricsContainerView.scrollTop = 0;
+        }
+
+        aboutToggleBtn.onclick = () => aboutModal.classList.add('active');
+        closeAboutBtn.onclick = () => aboutModal.classList.remove('active');
+        aboutModal.onclick = (e) => { if(e.target === aboutModal) aboutModal.classList.remove('active'); };
+
+        function loadTrack(index) {
+            const tracks = getFilteredTracks();
+            if (tracks.length === 0 || index < 0) {
+                resetPlayerToEmptyState();
+                return;
+            }
+            if (index >= tracks.length) index = 0;
+            currentTrackIndex = index;
+            const track = tracks[index];
+
+            if (objectUrlCache) {
+                URL.revokeObjectURL(objectUrlCache);
+                objectUrlCache = null;
+            }
+
+            if (track.isFile) {
+                objectUrlCache = URL.createObjectURL(track.fileData);
+                audio.src = objectUrlCache;
+            } else {
+                audio.src = track.src;
+            }
+
+            trackTitle.innerText = track.title;
+            trackArtist.innerText = track.artist;
+            
+            currentActiveLyricIndex = -1;
+            parseAndBuildLyricNodes(track.lyricRaw);
+            updateMediaSessionMetadata(track);
+            renderInterface();
+        }
+
+        function selectTrack(index) {
+            if (index < 0) return;
+            loadTrack(index); 
+            if (isShuffled && shuffleOrder[0] !== index) {
+                generateShuffleOrder();
+            }
+            playAudio();
+        }
+
+        function playAudio() {
+            if (getFilteredTracks().length === 0) return;
+            audio.play().then(() => {
+                playIcon.innerHTML = `<path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>`;
+                if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "playing";
+            }).catch(e => console.log(e));
+        }
+
+        btnPlayPause.onclick = () => {
+            if (getFilteredTracks().length === 0) return;
+            if(audio.paused) { playAudio(); } 
+            else { audio.pause(); playIcon.innerHTML = `<path d="M8 5v14l11-7z"/>`; if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "paused"; }
+        };
+
+        btnRepeat.onclick = () => {
+            isRepeating = !isRepeating;
+            btnRepeat.classList.toggle('active', isRepeating);
+        };
+
+        btnShuffle.onclick = () => {
+            isShuffled = !isShuffled;
+            btnShuffle.classList.toggle('active', isShuffled);
+            if (isShuffled) generateShuffleOrder();
+        };
+
+        btnNext.onclick = () => { if (currentTrackIndex >= 0) advanceTrack(true); };
+        btnPrev.onclick = () => {
+            const tracks = getFilteredTracks();
+            if (tracks.length === 0) return;
+            let idx = currentTrackIndex;
+
+            if (isShuffled && shuffleOrder.length > 0) {
+                let currentShufflePos = shuffleOrder.indexOf(currentTrackIndex);
+                let prevShufflePos = currentShufflePos - 1;
+                if (prevShufflePos < 0) prevShufflePos = shuffleOrder.length - 1;
+                idx = shuffleOrder[prevShufflePos];
+            } else {
+                idx = currentTrackIndex - 1;
+                if (idx < 0) idx = tracks.length - 1;
+            }
+            selectTrack(idx);
+        };
+
+        function advanceTrack(forcedByHand = false) {
+            if (getFilteredTracks().length === 0) return;
+            if (isRepeating && !forcedByHand) {
+                selectTrack(currentTrackIndex);
+                return;
+            }
+
+            const tracks = getFilteredTracks();
+            let nextIndex = currentTrackIndex;
+
+            if (isShuffled && shuffleOrder.length > 0) {
+                let currentShufflePos = shuffleOrder.indexOf(currentTrackIndex);
+                let nextShufflePos = currentShufflePos + 1;
+                
+                if (nextShufflePos >= shuffleOrder.length) {
+                    if (forcedByHand) { nextShufflePos = 0; } 
+                    else { stopPlayback(); return; }
+                }
+                nextIndex = shuffleOrder[nextShufflePos];
+            } else {
+                nextIndex = currentTrackIndex + 1;
+                if (nextIndex >= tracks.length) {
+                    if (forcedByHand) { nextIndex = 0; } 
+                    else { stopPlayback(); return; }
+                }
+            }
+            selectTrack(nextIndex);
+        }
+
+        function stopPlayback() {
+            audio.pause();
+            audio.currentTime = 0;
+            playIcon.innerHTML = `<path d="M8 5v14l11-7z"/>`;
+            if ('mediaSession' in navigator) navigator.mediaSession.playbackState = "paused";
+        }
+
+        audio.onended = () => advanceTrack(false);
+
+        audio.ontimeupdate = () => {
+            if(isNaN(audio.duration)) return;
+            const currentTime = audio.currentTime;
+            
+            const percentage = (currentTime / audio.duration) * 100;
+            progressFill.style.width = `${percentage}%`;
+            const curMin = Math.floor(currentTime / 60), curSec = Math.floor(currentTime % 60);
+            const durMin = Math.floor(audio.duration / 60), durSec = Math.floor(audio.duration % 60);
+            timeCurrent.innerText = `${curMin}:${curSec < 10 ? '0' : ''}${curSec}`;
+            timeTotal.innerText = `${durMin}:${durSec < 10 ? '0' : ''}${durSec}`;
+
+            if (hasActiveLyrics && isTimedLyrics && currentLyrics.length > 0) {
+                let activeIndex = -1;
+                for (let i = 0; i < currentLyrics.length; i++) {
+                    if (currentTime >= currentLyrics[i].time) {
+                        activeIndex = i;
+                    } else {
+                        break;
+                    }
+                }
+
+                if (activeIndex !== -1 && activeIndex !== currentActiveLyricIndex) {
+                    currentActiveLyricIndex = activeIndex;
+                    const lines = lyricsContainerView.querySelectorAll('.lyric-line');
+                    
+                    lines.forEach((line, idx) => {
+                        if (idx === activeIndex) {
+                            line.style.color = '#00f2fe';
+                            line.style.transform = 'scale(1.05)';
+                            
+                            const containerHeight = lyricsContainerView.clientHeight;
+                            const lineTop = line.offsetTop;
+                            const lineHeight = line.clientHeight;
+                            
+                            lyricsContainerView.scrollTo({
+                                top: lineTop - (containerHeight / 2) + (lineHeight / 2),
+                                behavior: 'smooth'
+                            });
+                        } else {
+                            line.style.color = 'rgba(255, 255, 255, 0.3)';
+                            line.style.transform = 'scale(1.0)';
+                        }
+                    });
+                }
+            }
+        };
+
+        progressBar.onclick = (e) => {
+            if (getFilteredTracks().length === 0) return;
+            const rect = progressBar.getBoundingClientRect();
+            const pct = (e.clientX - rect.left) / rect.width;
+            if(!isNaN(audio.duration)) audio.currentTime = pct * audio.duration;
+        };
+
+        drawerToggle.onclick = () => sideDrawer.classList.toggle('open');
+
+        function setupMediaSessionHandlers() {
+            if (!('mediaSession' in navigator)) return;
+            navigator.mediaSession.setActionHandler('play', () => btnPlayPause.click());
+            navigator.mediaSession.setActionHandler('pause', () => btnPlayPause.click());
+            navigator.mediaSession.setActionHandler('previoustrack', () => btnPrev.click());
+            navigator.mediaSession.setActionHandler('nexttrack', () => btnNext.click());
+        }
+
+        function updateMediaSessionMetadata(track) {
+            if (!('mediaSession' in navigator) || !track) return;
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: track.title, artist: track.artist, album: "Mine Audio Player",
+                artwork: [{ src: 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512"><rect width="100%" height="100%" fill="%2306060c"/><circle cx="256" cy="256" r="120" fill="%2300f2fe"/></svg>', sizes: '512x512', type: 'image/svg+xml' }]
+            });
+        }
+
+        renderInterface();
+        loadTrack(0);
+    </script>
+</body>
+</html>
